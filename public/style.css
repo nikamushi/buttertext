@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #FAFAFC;
+    color: #1F2024;
+}
+
+/* Custom Scrollbars */
+textarea::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+textarea::-webkit-scrollbar-track {
+    background: transparent;
+}
+textarea::-webkit-scrollbar-thumb {
+    background: #E4E4E7;
+    border-radius: 3px;
+}
+textarea::-webkit-scrollbar-thumb:hover {
+    background: #D4D4D8;
+}
+
+/* Glassmorphism & Card styling */
+.glass-panel {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(228, 228, 231, 0.6);
+}
+
+/* Tab Transitions */
+.tab-btn {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Pulse Glow for loading state */
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 12px 4px rgba(79, 70, 229, 0.2);
+    }
+}
+.loading-glow {
+    animation: pulse-glow 2s infinite;
+}
+
+/* Toast Animation */
+@keyframes slide-up-fade {
+    0% {
+        transform: translateY(1rem);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+.animate-toast {
+    animation: slide-up-fade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Shimmer animation for loading skeleton */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+.shimmer-bg {
+    background: linear-gradient(90deg, #F4F4F5 25%, #E4E4E7 37%, #F4F4F5 63%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+}

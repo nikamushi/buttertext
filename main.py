@@ -2,8 +2,6 @@ import os
 import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import httpx
 from dotenv import load_dotenv
@@ -109,13 +107,15 @@ async def grammar(request: TextRequest):
         result = await call_gemini_api(system_prompt, request.text)
     return {"result": result}
 
-# Serve Frontend static files
-@app.get("/")
-def read_index():
-    index_path = os.path.join(os.path.dirname(__file__), "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return {"message": "AI Text Assistant Backend is running. Frontend index.html not found."}
-
-# Mount static files
-app.mount("/", StaticFiles(directory=os.path.dirname(__file__), html=True), name="static")
+if os.getenv("VERCEL") != "1":
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+    
+    @app.get("/")
+    def read_index():
+        index_path = os.path.join(os.path.dirname(__file__), "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        return {"message": "AI Text Assistant Backend is running. Frontend index.html not found."}
+    
+    app.mount("/", StaticFiles(directory=os.path.dirname(__file__), html=True), name="static")

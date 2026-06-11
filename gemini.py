@@ -10,7 +10,7 @@ load_dotenv()
 logger = logging.getLogger("ai-text-assistant")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
 
 def get_simulated_fallback(system_prompt: str, user_text: str) -> str:
     text_lower = user_text.lower().strip()

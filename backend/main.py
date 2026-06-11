@@ -6,8 +6,9 @@ from pydantic import BaseModel
 import httpx
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from parent directory (root)
+env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
+load_dotenv(dotenv_path=env_path)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

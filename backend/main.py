@@ -1,6 +1,6 @@
 import os
 import logging
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
@@ -26,13 +26,115 @@ app.add_middleware(
 
 from gemini import call_gemini_api
 from deepseek import call_deepseek_api
+from database import (
+    create_user, get_user_by_username, verify_password, 
+    create_session, get_user_by_session_token, delete_session, 
+    get_all_users, update_user, delete_user
+)
 
+# Authentication Dependencies
+async def get_current_user(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Sesi tidak valid. Silakan login terlebih dahulu.")
+    token = authorization.split(" ")[1]
+    user = get_user_by_session_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Sesi kedaluwarsa atau tidak valid. Silakan login kembali.")
+    return user
+
+async def get_admin_user(current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Akses ditolak. Anda bukan Admin.")
+    return current_user
+
+# Pydantic Schemas
 class TextRequest(BaseModel):
     text: str
     provider: str = "gemini"
 
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class UserUpdateRequest(BaseModel):
+    username: str
+    role: str
+
+# Auth & User API Endpoints
+@app.post("/api/register")
+def register(req: RegisterRequest):
+    username_cleaned = req.username.strip()
+    password_cleaned = req.password.strip()
+    
+    if not username_cleaned or not password_cleaned:
+        raise HTTPException(status_code=400, detail="Username dan password tidak boleh kosong.")
+    if len(username_cleaned) < 3:
+        raise HTTPException(status_code=400, detail="Username minimal 3 karakter.")
+    if len(password_cleaned) < 6:
+        raise HTTPException(status_code=400, detail="Password minimal 6 karakter.")
+        
+    user = create_user(username_cleaned, password_cleaned)
+    if not user:
+        raise HTTPException(status_code=400, detail="Username sudah terdaftar.")
+    return {"message": "Registrasi berhasil", "user": user}
+
+@app.post("/api/login")
+def login(req: LoginRequest):
+    user = get_user_by_username(req.username)
+    if not user or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Username atau password salah.")
+    
+    token = create_session(user["id"])
+    return {
+        "token": token,
+        "username": user["username"],
+        "role": user["role"]
+    }
+
+@app.post("/api/logout")
+def logout(authorization: str = Header(None)):
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        delete_session(token)
+    return {"message": "Logout berhasil"}
+
+@app.get("/api/users/me")
+def get_me(current_user: dict = Depends(get_current_user)):
+    return current_user
+
+# Admin Management API Endpoints
+@app.get("/api/users")
+def list_users(admin: dict = Depends(get_admin_user)):
+    return get_all_users()
+
+@app.put("/api/users/{user_id}")
+def edit_user(user_id: int, req: UserUpdateRequest, admin: dict = Depends(get_admin_user)):
+    if not req.username.strip():
+        raise HTTPException(status_code=400, detail="Username tidak boleh kosong.")
+    if req.role not in ["user", "admin"]:
+        raise HTTPException(status_code=400, detail="Role tidak valid.")
+    
+    success = update_user(user_id, req.username, req.role)
+    if not success:
+        raise HTTPException(status_code=400, detail="Gagal mengupdate user (kemungkinan username sudah terpakai).")
+    return {"message": "User berhasil diupdate"}
+
+@app.delete("/api/users/{user_id}")
+def remove_user(user_id: int, admin: dict = Depends(get_admin_user)):
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="Anda tidak dapat menghapus akun Anda sendiri.")
+    success = delete_user(user_id)
+    if not success:
+        raise HTTPException(status_code=400, detail="Gagal menghapus user.")
+    return {"message": "User berhasil dihapus"}
+
+# AI Core Endpoints (Protected by Login)
 @app.post("/paraphrase")
-async def paraphrase(request: TextRequest):
+async def paraphrase(request: TextRequest, current_user: dict = Depends(get_current_user)):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Masukkan teks terlebih dahulu.")
     if len(request.text.strip()) < 5:
@@ -56,7 +158,7 @@ async def paraphrase(request: TextRequest):
     return {"result": result}
 
 @app.post("/summary")
-async def summary(request: TextRequest):
+async def summary(request: TextRequest, current_user: dict = Depends(get_current_user)):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Masukkan teks terlebih dahulu.")
     if len(request.text.strip()) < 5:
@@ -81,7 +183,7 @@ async def summary(request: TextRequest):
     return {"result": result}
 
 @app.post("/grammar")
-async def grammar(request: TextRequest):
+async def grammar(request: TextRequest, current_user: dict = Depends(get_current_user)):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Masukkan teks terlebih dahulu.")
     if len(request.text.strip()) < 5:
@@ -107,16 +209,33 @@ async def grammar(request: TextRequest):
         result = await call_gemini_api(system_prompt, request.text)
     return {"result": result}
 
+# Local Server Static File Routing (Disabled on Vercel)
 if os.getenv("VERCEL") != "1":
     from fastapi.responses import FileResponse
     from fastapi.staticfiles import StaticFiles
     
+    frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+    
     @app.get("/")
     def read_index():
-        index_path = os.path.join(os.path.dirname(__file__), "index.html")
+        index_path = os.path.join(frontend_dir, "index.html")
         if os.path.exists(index_path):
             return FileResponse(index_path)
         return {"message": "AI Text Assistant Backend is running."}
     
-    # Mount static files dari root folder
-    app.mount("/", StaticFiles(directory=os.path.dirname(__file__), html=True), name="static")
+    @app.get("/admin")
+    def read_admin():
+        admin_path = os.path.join(frontend_dir, "admin.html")
+        if os.path.exists(admin_path):
+            return FileResponse(admin_path)
+        return {"message": "admin.html not found."}
+    
+    @app.get("/login")
+    def read_login():
+        login_path = os.path.join(frontend_dir, "login.html")
+        if os.path.exists(login_path):
+            return FileResponse(login_path)
+        return {"message": "login.html not found."}
+    
+    # Mount static files dari frontend folder
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="static")

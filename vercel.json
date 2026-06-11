@@ -6,34 +6,54 @@
       "use": "@vercel/python"
     },
     {
-      "src": "index.html",
+      "src": "frontend/index.html",
       "use": "@vercel/static"
     },
     {
-      "src": "style.css",
+      "src": "frontend/admin.html",
       "use": "@vercel/static"
     },
     {
-      "src": "app.js",
+      "src": "frontend/login.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "frontend/style.css",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "frontend/app.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "frontend/admin.js",
       "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/paraphrase",
+      "src": "/(paraphrase|summary|grammar|api/.*)",
       "dest": "api/index.py"
     },
     {
-      "src": "/summary",
-      "dest": "api/index.py"
+      "src": "/admin",
+      "dest": "/frontend/admin.html"
     },
     {
-      "src": "/grammar",
-      "dest": "api/index.py"
+      "src": "/login",
+      "dest": "/frontend/login.html"
+    },
+    {
+      "src": "/",
+      "dest": "/frontend/index.html"
+    },
+    {
+      "src": "/(.*\\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot))",
+      "dest": "/frontend/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "/$1"
+      "dest": "/frontend/$1"
     }
   ]
 }

@@ -41,7 +41,22 @@ document.addEventListener('DOMContentLoaded', () => {
             charCount.textContent = inputText.value.length;
         });
     }
-
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        // Close auth modal with ESC key
+        if (authModal && e.key === 'Escape') {
+            closeAuthModal();
+        }
+        
+        // Save text on Ctrl+S
+        if (e.ctrlKey && e.key === 's' && inputText) {
+            e.preventDefault();
+            showToast('Teks disimpan lokal!', 'success');
+            localStorage.setItem('buttertext_saved_text', inputText.value);
+        }
+    });
+    
     updateAuthUI();
 });
 
@@ -288,6 +303,11 @@ async function submitAuthForm(e) {
 }
 
 async function handleLogout() {
+    // Ask for confirmation before logging out
+    if (!confirm('Apakah Anda yakin ingin keluar? Sesi login Anda akan berakhir.')) {
+        return;
+    }
+    
     const token = localStorage.getItem('token');
     if (token) {
         try {
@@ -301,8 +321,12 @@ async function handleLogout() {
             console.error('Logout error:', err);
         }
     }
+    
     localStorage.clear();
-    window.location.href = '/login';
+    showToast('Anda telah berhasil keluar.', 'success');
+    setTimeout(() => {
+        window.location.href = '/';
+    }, 500);
 }
 
 function updateAuthUI() {

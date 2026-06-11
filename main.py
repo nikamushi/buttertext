@@ -116,6 +116,7 @@ if os.getenv("VERCEL") != "1":
         index_path = os.path.join(os.path.dirname(__file__), "index.html")
         if os.path.exists(index_path):
             return FileResponse(index_path)
-        return {"message": "AI Text Assistant Backend is running. Frontend index.html not found."}
+        return {"message": "AI Text Assistant Backend is running."}
     
+    # Mount static files dari root folder
     app.mount("/", StaticFiles(directory=os.path.dirname(__file__), html=True), name="static")

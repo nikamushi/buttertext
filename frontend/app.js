@@ -143,11 +143,15 @@ async function processText() {
 
     // Check Authentication
     const token = localStorage.getItem('token');
+    
     if (!token) {
         showToast("Silakan masuk/login terlebih dahulu untuk menggunakan ButterText.", true);
         openAuthModal('login');
         return;
     }
+    
+    // Log token for debugging (remove in production)
+    console.log('Token exists:', token.substring(0, 20) + '...');
     
     // Set UI to loading state
     setInputDisabledState(true);

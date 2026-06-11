@@ -1,27 +1,17 @@
 {
   "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/paraphrase",
-      "dest": "api/index.py"
+      "source": "/paraphrase",
+      "destination": "/api/index.py"
     },
     {
-      "src": "/summary",
-      "dest": "api/index.py"
+      "source": "/summary",
+      "destination": "/api/index.py"
     },
     {
-      "src": "/grammar",
-      "dest": "api/index.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
+      "source": "/grammar",
+      "destination": "/api/index.py"
     }
   ]
 }

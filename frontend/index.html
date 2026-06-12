@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Text Assistant</title>
+    <title>ButterText — Asisten AI untuk Teks yang Lebih Baik</title>
     <meta name="description" content="Parafrase, ringkas, dan perbaiki teks dengan AI secara cepat dan mudah.">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
                         primary: '#4F46E5',
                         secondary: '#7170B8',
-                        accent: '#A54100',
                         neutral: '#777881',
                         customGreen: '#00A86B'
                     }
@@ -22,20 +22,41 @@
         }
     </script>
     <link rel="stylesheet" href="style.css">
+    <!-- Dark Mode Init Guard (mencegah flash putih) -->
+    <script>
+        (function () {
+            var theme = localStorage.getItem('theme');
+            if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+    <!-- Auth Guard -->
+    <script>
+        (function () {
+            if (!localStorage.getItem('token')) {
+                window.location.replace('/login');
+            }
+        })();
+    </script>
 </head>
-<body class="min-h-screen flex flex-col bg-gray-50">
+<body class="min-h-screen flex flex-col bg-gray-50 dark:bg-slate-900 transition-colors duration-200">
 
+    <!-- Toast Success -->
     <div id="toast" class="fixed top-4 right-4 z-50 hidden">
-        <div class="flex items-center gap-3 px-4 py-3 text-sm text-green-800 border border-green-200 rounded-xl bg-white shadow-lg" role="alert">
+        <div class="flex items-center gap-3 px-4 py-3 text-sm text-green-800 border border-green-200 rounded-xl bg-white dark:bg-slate-800 dark:text-green-300 dark:border-green-700 shadow-lg" role="alert">
             <svg class="w-4 h-4 text-customGreen flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z"/>
             </svg>
-            <span class="font-medium" id="toast-message">Teks berhasil disalin!</span>
+            <span class="font-medium" id="toast-message">Berhasil!</span>
         </div>
     </div>
 
+    <!-- Toast Error -->
     <div id="error-toast" class="fixed top-4 right-4 z-50 hidden">
-        <div class="flex items-center gap-3 px-4 py-3 text-sm text-red-700 border border-red-200 rounded-xl bg-white shadow-lg" role="alert">
+        <div class="flex items-center gap-3 px-4 py-3 text-sm text-red-700 border border-red-200 rounded-xl bg-white dark:bg-slate-800 dark:text-red-300 dark:border-red-700 shadow-lg" role="alert">
             <svg class="w-4 h-4 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 11.793a1 1 0 1 1-1.414 1.414L10 11.414l-2.293 2.293a1 1 0 0 1-1.414-1.414L8.586 10 6.293 7.707a1 1 0 0 1 1.414-1.414L10 8.586l2.293-2.293a1 1 0 0 1 1.414 1.414L11.414 10l2.293 2.293Z"/>
             </svg>
@@ -44,19 +65,33 @@
     </div>
 
     <!-- ======= Header Navbar ======= -->
-    <header class="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-30">
+    <header class="bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700 shadow-sm sticky top-0 z-30 transition-colors duration-200">
         <div class="max-w-3xl mx-auto px-4 sm:px-6 py-3.5 flex justify-between items-center">
             <div class="flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
-                <span class="text-lg font-bold text-gray-900 tracking-tight">ButterText</span>
+                <span class="text-xl font-bold text-gray-900 dark:text-white tracking-tight" id="brand-logo">ButterText</span>
             </div>
-            
-            <div id="auth-section" class="flex items-center gap-2">
-                <!-- Authentication status gets injected here by app.js -->
-                <button id="auth-btn" onclick="window.location.href = '/login'" 
-                    class="px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-indigo-700 rounded-xl transition-all shadow-sm"
-                    style="display: none;">
-                    Masuk / Daftar
+            <!-- Kanan: theme toggle + auth -->
+            <div class="flex items-center gap-2">
+                <!-- Dark mode toggle -->
+                <button id="theme-toggle" onclick="toggleTheme()"
+                    class="p-2 rounded-xl text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all"
+                    aria-label="Toggle tema gelap">
+                    <!-- Ikon Bulan (tampil di Light Mode) -->
+                    <svg id="icon-moon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                    </svg>
+                    <!-- Ikon Matahari (tampil di Dark Mode) -->
+                    <svg id="icon-sun" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+                    </svg>
                 </button>
+                <!-- Auth section -->
+                <div id="auth-section" class="flex items-center gap-2">
+                    <button onclick="window.location.href='/login'"
+                        class="px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-indigo-700 rounded-xl transition-all shadow-sm">
+                        Masuk / Daftar
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -65,12 +100,14 @@
     <main class="flex-grow w-full max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-6">
 
         <div class="space-y-1">
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">ButterText</h1>
-            <p class="text-sm text-neutral">Parafrase, ringkas, dan perbaiki teks dengan AI</p>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">ButterText</h1>
+            <p class="text-sm text-neutral dark:text-slate-400">Parafrase, ringkas, dan perbaiki teks dengan AI</p>
         </div>
 
-        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+        <!-- Card utama -->
+        <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5 space-y-4">
 
+            <!-- Tab + Provider -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div class="flex items-center gap-1">
                     <button id="tab-paraphrase" onclick="switchTab('paraphrase')"
@@ -79,44 +116,49 @@
                         Parafrase
                     </button>
                     <button id="tab-summary" onclick="switchTab('summary')"
-                        class="tab-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-gray-500 border border-gray-200 hover:border-gray-300 hover:text-gray-700"
+                        class="tab-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-gray-500 dark:text-slate-300 border border-gray-200 dark:border-slate-600 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white"
                         aria-label="Mode Ringkasan">
                         Ringkasan
                     </button>
                     <button id="tab-grammar" onclick="switchTab('grammar')"
-                        class="tab-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-gray-500 border border-gray-200 hover:border-gray-300 hover:text-gray-700"
+                        class="tab-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-gray-500 dark:text-slate-300 border border-gray-200 dark:border-slate-600 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white"
                         aria-label="Mode Grammar">
                         Grammar
                     </button>
                 </div>
                 <div class="flex items-center gap-2">
-                    <label for="provider-select" class="text-xs font-semibold text-gray-400">Model AI:</label>
-                    <select id="provider-select" class="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white text-gray-700 cursor-pointer">
+                    <label for="provider-select" class="text-xs font-semibold text-gray-400 dark:text-slate-400">Model AI:</label>
+                    <select id="provider-select"
+                        class="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 dark:border-slate-600
+                               focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary
+                               bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 cursor-pointer">
                         <option value="gemini">Gemini 3 Flash</option>
                         <option value="deepseek">DeepSeek Chat</option>
                     </select>
                 </div>
             </div>
 
-            <!-- Textarea -->
+            <!-- Textarea input -->
             <div class="relative">
                 <textarea
                     id="input-text"
                     rows="6"
                     placeholder="Masukkan teks di sini..."
-                    class="w-full p-4 text-sm text-gray-800 bg-white rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all resize-none placeholder-gray-400"
-                ></textarea>
+                    class="w-full p-4 text-sm text-gray-800 dark:text-slate-100 bg-white dark:bg-slate-700 rounded-xl border border-gray-200 dark:border-slate-600
+                           focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none
+                           transition-all resize-none placeholder-gray-400 dark:placeholder-slate-500">
+                </textarea>
                 <div class="absolute bottom-3 right-3 flex items-center gap-1.5">
-                    <span class="text-xs text-gray-300" id="char-count">0</span>
-                    <svg class="w-3.5 h-3.5 text-gray-300" fill="currentColor" viewBox="0 0 6 6">
-                        <path d="M6 6H4V4h2v2zM6 3H4V1h2v2zM3 6H1V4h2v2z"/>
-                    </svg>
+                    <span class="text-xs text-gray-300 dark:text-slate-500" id="char-count">0</span>
                 </div>
             </div>
 
+            <!-- Action buttons -->
             <div class="flex justify-between items-center">
                 <button id="btn-clear" onclick="clearText()"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-500 rounded-xl border border-gray-200 hover:bg-gray-50 hover:text-gray-700 focus:outline-none transition-all"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-500 dark:text-slate-300
+                           rounded-xl border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-white
+                           focus:outline-none transition-all"
                     aria-label="Bersihkan Input">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
@@ -124,7 +166,9 @@
                     Clear
                 </button>
                 <button id="btn-proses" onclick="processText()"
-                    class="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-primary rounded-xl hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+                    class="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white
+                           bg-primary rounded-xl hover:bg-indigo-700 focus:outline-none focus:ring-4
+                           focus:ring-indigo-100 transition-all shadow-sm"
                     aria-label="Proses Teks">
                     <svg id="spinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -138,8 +182,8 @@
             </div>
         </div>
 
-        <!-- ======= Skeleton Loading Card ======= -->
-        <div id="skeleton-card" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 hidden">
+        <!-- Skeleton loading -->
+        <div id="skeleton-card" class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5 space-y-4 hidden">
             <div class="flex justify-between items-center">
                 <div class="h-4 w-12 shimmer-bg rounded-md"></div>
                 <div class="h-6 w-20 shimmer-bg rounded-full"></div>
@@ -155,28 +199,27 @@
             </div>
         </div>
 
-        <div id="result-card" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 hidden">
+        <!-- Result card -->
+        <div id="result-card" class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5 space-y-4 hidden">
             <div class="flex justify-between items-center">
-                <div class="flex items-center gap-2 font-semibold text-sm text-gray-800">
+                <div class="flex items-center gap-2 font-semibold text-sm text-gray-800 dark:text-slate-100">
                     <svg class="w-4 h-4 text-customGreen" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                     Hasil
                 </div>
-                <span id="active-badge"
-                    class="px-2.5 py-0.5 text-xs font-medium text-gray-500 bg-gray-100 rounded-md capitalize">
+                <span id="active-badge" class="px-2.5 py-0.5 text-xs font-medium text-gray-500 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 rounded-md capitalize">
                     Parafrase
                 </span>
             </div>
-
-            <!-- Output text area -->
             <div id="output-text"
-                class="p-0 text-sm text-gray-700 leading-relaxed break-words whitespace-pre-wrap select-text min-h-[80px]">
+                class="text-sm text-gray-700 dark:text-slate-200 leading-relaxed break-words whitespace-pre-wrap select-text min-h-[80px]">
             </div>
-
-            <div class="flex justify-end pt-2 border-t border-gray-50">
+            <div class="flex justify-end pt-2 border-t border-gray-50 dark:border-slate-700">
                 <button id="btn-copy" onclick="copyResult()"
-                    class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-customGreen rounded-xl hover:bg-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all shadow-sm"
+                    class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white
+                           bg-customGreen rounded-xl hover:bg-emerald-600 focus:outline-none
+                           focus:ring-4 focus:ring-emerald-100 transition-all shadow-sm"
                     aria-label="Salin Hasil">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
@@ -186,72 +229,50 @@
             </div>
         </div>
 
-        <!-- ======= Quick Prompt Templates ======= -->
-        <div class="space-y-2.5 pb-6">
-            <p class="text-xs font-medium text-gray-400">Contoh Penggunaan:</p>
+        <!-- Quick templates -->
+        <div class="space-y-2.5">
+            <p class="text-xs font-medium text-gray-400 dark:text-slate-500">Contoh Penggunaan:</p>
             <div class="flex flex-wrap gap-2">
                 <button onclick="applyTemplate('Buat lebih formal', 'paraphrase')"
-                    class="px-3.5 py-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-full hover:border-secondary hover:text-secondary transition-all focus:outline-none">
+                    class="px-3.5 py-1.5 text-xs font-medium text-gray-500 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600
+                           rounded-full hover:border-secondary hover:text-secondary transition-all focus:outline-none">
                     Buat lebih formal
                 </button>
                 <button onclick="applyTemplate('Ringkas jadi 1 paragraf', 'summary')"
-                    class="px-3.5 py-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-full hover:border-secondary hover:text-secondary transition-all focus:outline-none">
+                    class="px-3.5 py-1.5 text-xs font-medium text-gray-500 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600
+                           rounded-full hover:border-secondary hover:text-secondary transition-all focus:outline-none">
                     Ringkas jadi 1 paragraf
                 </button>
                 <button onclick="applyTemplate('Perbaiki ejaan &amp; tanda baca', 'grammar')"
-                    class="px-3.5 py-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-full hover:border-secondary hover:text-secondary transition-all focus:outline-none">
+                    class="px-3.5 py-1.5 text-xs font-medium text-gray-500 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600
+                           rounded-full hover:border-secondary hover:text-secondary transition-all focus:outline-none">
                     Perbaiki ejaan &amp; tanda baca
                 </button>
             </div>
         </div>
 
+        <!-- ======= Riwayat Pemrosesan ======= -->
+        <!-- <div class="space-y-3 pb-6">
+            <div class="flex justify-between items-center">
+                <p class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Riwayat Saya</p>
+                <button onclick="clearHistory()"
+                    class="text-xs font-medium text-red-400 hover:text-red-600 transition-all focus:outline-none hidden" id="btn-clear-history">
+                    Hapus Semua
+                </button>
+            </div>
+            <div id="history-list" class="space-y-2"> -->
+                <!-- Diisi oleh app.js -->
+                <!-- <p id="history-empty" class="text-xs text-gray-300 dark:text-slate-600 text-center py-4">Belum ada riwayat pemrosesan.</p>
+            </div>
+        </div> -->
+
     </main>
 
-    <!-- ======= Auth Modal (Login / Register) ======= -->
-    <div id="auth-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-        <div class="bg-white w-full max-w-md p-6 rounded-2xl border border-gray-100 shadow-xl space-y-4 animate-modal-in">
-            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
-                <h3 id="auth-modal-title" class="text-lg font-bold text-gray-900">Masuk ke ButterText</h3>
-                <button onclick="closeAuthModal()" class="text-gray-400 hover:text-gray-600 transition-all">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-            
-            <form id="auth-form" onsubmit="submitAuthForm(event)" class="space-y-4">
-                <div class="space-y-1">
-                    <label for="auth-username" class="text-xs font-semibold text-gray-500">Username</label>
-                    <input type="text" id="auth-username" required placeholder="Masukkan username..."
-                        class="w-full p-3 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all">
-                </div>
-                
-                <div class="space-y-1">
-                    <label for="auth-password" class="text-xs font-semibold text-gray-500">Password</label>
-                    <input type="password" id="auth-password" required placeholder="Masukkan password..."
-                        class="w-full p-3 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all">
-                </div>
-                
-                <button type="submit" id="auth-submit-btn"
-                    class="w-full py-3 text-sm font-semibold text-white bg-primary rounded-xl hover:bg-indigo-700 transition-all shadow-sm">
-                    Masuk
-                </button>
-            </form>
-            
-            <div class="text-center pt-2">
-                <p class="text-xs text-gray-500">
-                    <span id="auth-switch-text">Belum punya akun?</span>
-                    <button onclick="switchAuthMode()" id="auth-switch-btn" class="text-primary font-semibold hover:underline focus:outline-none ml-1">
-                        Daftar Sekarang
-                    </button>
-                </p>
-            </div>
-        </div>
-    </div>
-
-    <footer class="text-center text-xs text-gray-300 py-4 border-t border-gray-100 bg-white">
+    <footer class="text-center text-xs text-gray-300 dark:text-slate-600 py-4 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 transition-colors duration-200">
         &copy; 2026 ButterText. Semua Hak Dilindungi.
     </footer>
+
+
 
     <script src="app.js"></script>
 </body>

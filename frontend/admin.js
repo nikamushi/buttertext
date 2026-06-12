@@ -5,7 +5,7 @@ const userRole = localStorage.getItem('role');
 
 // Frontend Validation: Redirect if not an admin
 if (!token || userRole !== 'admin') {
-    window.location.href = '/';
+    window.location.replace('/login');
 }
 
 // DOM Elements
@@ -19,6 +19,7 @@ const editRoleInput = document.getElementById('edit-role');
 
 // Load Data on Load
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     // Tampilkan nama admin yang sedang login
     const username = localStorage.getItem('username');
     const badge = document.getElementById('admin-username-badge');
@@ -55,9 +56,8 @@ async function fetchUsers() {
         });
 
         if (response.status === 401 || response.status === 403) {
-            // Unauthorized/Forbidden
             localStorage.clear();
-            window.location.href = '/';
+            window.location.href = '/login';
             return;
         }
 
@@ -89,7 +89,7 @@ function renderUsersTable() {
     if (usersData.length === 0) {
         userTableBody.innerHTML = `
             <tr>
-                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                <td colspan="5" class="px-6 py-8 text-center text-gray-400 dark:text-slate-500 bg-white dark:bg-slate-800">
                     Tidak ada pengguna terdaftar.
                 </td>
             </tr>
@@ -113,20 +113,20 @@ function renderUsersTable() {
 
         const isAdmin = user.role === 'admin';
         const roleBadge = isAdmin 
-            ? `<span class="px-2 py-0.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-150 rounded-md">Admin</span>`
-            : `<span class="px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-150 rounded-md">User</span>`;
+            ? `<span class="px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30 border border-green-150 dark:border-green-900/50 rounded-md">Admin</span>`
+            : `<span class="px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-slate-300 bg-gray-50 dark:bg-slate-700 border border-gray-150 dark:border-slate-600 rounded-md">User</span>`;
 
         return `
-            <tr class="hover:bg-gray-50/50 transition-all">
-                <td class="px-6 py-4 font-mono text-gray-500 font-semibold">${user.id}</td>
-                <td class="px-6 py-4 font-medium text-gray-900">${escapeHtml(user.username)}</td>
+            <tr class="hover:bg-gray-50/50 dark:hover:bg-slate-700/40 border-b border-gray-100 dark:border-slate-700 transition-all">
+                <td class="px-6 py-4 font-mono text-gray-500 dark:text-slate-400 font-semibold">${user.id}</td>
+                <td class="px-6 py-4 font-medium text-gray-900 dark:text-slate-100">${escapeHtml(user.username)}</td>
                 <td class="px-6 py-4">${roleBadge}</td>
-                <td class="px-6 py-4 text-gray-400 text-xs">${dateFormatted}</td>
+                <td class="px-6 py-4 text-gray-400 dark:text-slate-400 text-xs">${dateFormatted}</td>
                 <td class="px-6 py-4 text-right space-x-1.5 whitespace-nowrap">
-                    <button onclick="openEditModal(${user.id})" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-primary bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all">
+                    <button onclick="openEditModal(${user.id})" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-primary dark:text-indigo-400 bg-indigo-50 dark:bg-slate-700 hover:bg-indigo-100 dark:hover:bg-slate-600 rounded-lg transition-all">
                         Edit
                     </button>
-                    <button onclick="deleteUser(${user.id})" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-danger bg-red-50 hover:bg-red-100 rounded-lg transition-all">
+                    <button onclick="deleteUser(${user.id})" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-danger dark:text-red-400 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-lg transition-all">
                         Hapus
                     </button>
                 </td>
@@ -158,6 +158,8 @@ function closeEditModal() {
     editModal.classList.add('hidden');
     editUserIdInput.value = '';
     editUsernameInput.value = '';
+    const pwInput = document.getElementById('edit-password');
+    if (pwInput) pwInput.value = '';
 }
 
 // Submit edit user form
@@ -167,9 +169,15 @@ async function submitEditUserForm(e) {
     const userId = editUserIdInput.value;
     const username = editUsernameInput.value.trim();
     const role = editRoleInput.value;
+    const pwInput = document.getElementById('edit-password');
+    const password = pwInput ? pwInput.value.trim() : '';
     
     if (!username) {
         showToast('Username tidak boleh kosong!', true);
+        return;
+    }
+    if (password && password.length < 6) {
+        showToast('Password minimal 6 karakter!', true);
         return;
     }
 
@@ -180,7 +188,7 @@ async function submitEditUserForm(e) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ username, role })
+            body: JSON.stringify({ username, role, password: password || null })
         });
 
         const data = await response.json();
@@ -243,6 +251,63 @@ async function handleLogout() {
     window.location.href = '/login';
 }
 
+// Create User Modal Functions
+function openCreateModal() {
+    document.getElementById('create-username').value = '';
+    document.getElementById('create-password').value = '';
+    document.getElementById('create-role').value = 'user';
+    document.getElementById('create-modal').classList.remove('hidden');
+}
+
+function closeCreateModal() {
+    document.getElementById('create-modal').classList.add('hidden');
+}
+
+async function submitCreateUserForm(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('create-username').value.trim();
+    const password = document.getElementById('create-password').value.trim();
+    const role = document.getElementById('create-role').value;
+    
+    if (!username || !password) {
+        showToast('Username dan password tidak boleh kosong!', true);
+        return;
+    }
+    if (username.length < 3) {
+        showToast('Username minimal 3 karakter!', true);
+        return;
+    }
+    if (password.length < 6) {
+        showToast('Password minimal 6 karakter!', true);
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/users', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ username, password, role })
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.detail || 'Gagal menambahkan pengguna.');
+        }
+
+        showToast('Pengguna baru berhasil ditambahkan!');
+        closeCreateModal();
+        fetchUsers();
+
+    } catch (error) {
+        showToast(error.message, true);
+    }
+}
+
 // Utility: Escape HTML tags to prevent XSS injection
 function escapeHtml(text) {
     const map = {
@@ -253,4 +318,21 @@ function escapeHtml(text) {
         "'": '&#039;'
     };
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// Dark Mode Theme toggle support
+function initTheme() {
+    const isDark = document.documentElement.classList.contains('dark');
+    const iconMoon = document.getElementById('icon-moon');
+    const iconSun  = document.getElementById('icon-sun');
+    if (iconMoon && iconSun) {
+        iconMoon.classList.toggle('hidden', isDark);
+        iconSun.classList.toggle('hidden', !isDark);
+    }
+}
+
+function toggleTheme() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    initTheme();
 }

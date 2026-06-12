@@ -30,7 +30,9 @@ from deepseek import call_deepseek_api
 from database import (
     create_user, get_user_by_username, verify_password, 
     create_session, get_user_by_session_token, delete_session, 
-    get_all_users, update_user, delete_user
+    get_all_users, update_user, delete_user, create_user_with_role,
+    add_history, get_user_history, delete_history_item, clear_user_history,
+    update_user_password, update_username
 )
 
 # Authentication Dependencies
@@ -64,6 +66,16 @@ class LoginRequest(BaseModel):
 class UserUpdateRequest(BaseModel):
     username: str
     role: str
+    password: str = None
+
+class AdminCreateUserRequest(BaseModel):
+    username: str
+    password: str
+    role: str = "user"
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
 
 # Auth & User API Endpoints
 @app.post("/api/register")
@@ -103,14 +115,50 @@ def logout(authorization: str = Header(None)):
         delete_session(token)
     return {"message": "Logout berhasil"}
 
+class UpdateMeRequest(BaseModel):
+    username: str
+
 @app.get("/api/users/me")
 def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
+
+@app.patch("/api/users/me")
+def update_me(req: UpdateMeRequest, current_user: dict = Depends(get_current_user)):
+    username_cleaned = req.username.strip()
+    if not username_cleaned:
+        raise HTTPException(status_code=400, detail="Username tidak boleh kosong.")
+    if len(username_cleaned) < 3:
+        raise HTTPException(status_code=400, detail="Username minimal 3 karakter.")
+        
+    success = update_username(current_user["id"], username_cleaned)
+    if not success:
+        raise HTTPException(status_code=400, detail="Gagal memperbarui username (kemungkinan sudah terpakai oleh pengguna lain).")
+        
+    return {"message": "Username berhasil diperbarui", "username": username_cleaned}
 
 # Admin Management API Endpoints
 @app.get("/api/users")
 def list_users(admin: dict = Depends(get_admin_user)):
     return get_all_users()
+
+@app.post("/api/users")
+def admin_create_user(req: AdminCreateUserRequest, admin: dict = Depends(get_admin_user)):
+    username_cleaned = req.username.strip()
+    password_cleaned = req.password.strip()
+    
+    if not username_cleaned or not password_cleaned:
+        raise HTTPException(status_code=400, detail="Username dan password tidak boleh kosong.")
+    if len(username_cleaned) < 3:
+        raise HTTPException(status_code=400, detail="Username minimal 3 karakter.")
+    if len(password_cleaned) < 6:
+        raise HTTPException(status_code=400, detail="Password minimal 6 karakter.")
+    if req.role not in ["user", "admin"]:
+        raise HTTPException(status_code=400, detail="Role tidak valid.")
+        
+    user = create_user_with_role(username_cleaned, password_cleaned, req.role)
+    if not user:
+        raise HTTPException(status_code=400, detail="Username sudah terdaftar.")
+    return {"message": "Pengguna berhasil dibuat", "user": user}
 
 @app.put("/api/users/{user_id}")
 def edit_user(user_id: int, req: UserUpdateRequest, admin: dict = Depends(get_admin_user)):
@@ -122,7 +170,29 @@ def edit_user(user_id: int, req: UserUpdateRequest, admin: dict = Depends(get_ad
     success = update_user(user_id, req.username, req.role)
     if not success:
         raise HTTPException(status_code=400, detail="Gagal mengupdate user (kemungkinan username sudah terpakai).")
+        
+    if req.password and req.password.strip():
+        password_cleaned = req.password.strip()
+        if len(password_cleaned) < 6:
+            raise HTTPException(status_code=400, detail="Password baru minimal 6 karakter.")
+        update_user_password(user_id, password_cleaned)
+        
     return {"message": "User berhasil diupdate"}
+
+@app.post("/api/users/change-password")
+def change_password(req: ChangePasswordRequest, current_user: dict = Depends(get_current_user)):
+    user = get_user_by_username(current_user["username"])
+    if not user or not verify_password(req.old_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Password lama salah.")
+    
+    new_password_cleaned = req.new_password.strip()
+    if len(new_password_cleaned) < 6:
+        raise HTTPException(status_code=400, detail="Password baru minimal 6 karakter.")
+    
+    success = update_user_password(current_user["id"], new_password_cleaned)
+    if not success:
+        raise HTTPException(status_code=400, detail="Gagal mengganti password.")
+    return {"message": "Password berhasil diubah"}
 
 @app.delete("/api/users/{user_id}")
 def remove_user(user_id: int, admin: dict = Depends(get_admin_user)):
@@ -132,6 +202,23 @@ def remove_user(user_id: int, admin: dict = Depends(get_admin_user)):
     if not success:
         raise HTTPException(status_code=400, detail="Gagal menghapus user.")
     return {"message": "User berhasil dihapus"}
+
+# History API Endpoints (Protected by Login)
+@app.get("/api/history")
+def get_history(current_user: dict = Depends(get_current_user)):
+    return get_user_history(current_user["id"])
+
+@app.delete("/api/history")
+def clear_history(current_user: dict = Depends(get_current_user)):
+    clear_user_history(current_user["id"])
+    return {"message": "Riwayat berhasil dihapus"}
+
+@app.delete("/api/history/{history_id}")
+def delete_history(history_id: int, current_user: dict = Depends(get_current_user)):
+    success = delete_history_item(current_user["id"], history_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Riwayat tidak ditemukan.")
+    return {"message": "Item riwayat berhasil dihapus"}
 
 # AI Core Endpoints (Protected by Login)
 @app.post("/paraphrase")
@@ -156,6 +243,8 @@ async def paraphrase(request: TextRequest, current_user: dict = Depends(get_curr
         result = await call_deepseek_api(system_prompt, request.text)
     else:
         result = await call_gemini_api(system_prompt, request.text)
+    # Catat riwayat
+    add_history(current_user["id"], request.text, result, "paraphrase", request.provider)
     return {"result": result}
 
 @app.post("/summary")
@@ -181,6 +270,8 @@ async def summary(request: TextRequest, current_user: dict = Depends(get_current
         result = await call_deepseek_api(system_prompt, request.text)
     else:
         result = await call_gemini_api(system_prompt, request.text)
+    # Catat riwayat
+    add_history(current_user["id"], request.text, result, "summary", request.provider)
     return {"result": result}
 
 @app.post("/grammar")
@@ -208,6 +299,8 @@ async def grammar(request: TextRequest, current_user: dict = Depends(get_current
         result = await call_deepseek_api(system_prompt, request.text)
     else:
         result = await call_gemini_api(system_prompt, request.text)
+    # Catat riwayat
+    add_history(current_user["id"], request.text, result, "grammar", request.provider)
     return {"result": result}
 
 # Local Server Static File Routing (Disabled on Vercel)

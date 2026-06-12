@@ -40,6 +40,20 @@ def init_db():
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
     """)
+
+    # Create History Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        original_text TEXT NOT NULL,
+        processed_text TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+    """)
     
     conn.commit()
     conn.close()
@@ -93,6 +107,25 @@ def create_user(username: str, password_raw: str) -> dict:
         conn.close()
         return None
 
+def create_user_with_role(username: str, password_raw: str, role: str) -> dict:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    password_hash = hash_password(password_raw)
+    
+    try:
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+            (username.lower().strip(), password_hash, role)
+        )
+        conn.commit()
+        user_id = cursor.lastrowid
+        conn.close()
+        return {"id": user_id, "username": username, "role": role}
+    except sqlite3.IntegrityError:
+        conn.close()
+        return None
+
 def get_user_by_username(username: str) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -125,15 +158,41 @@ def update_user(user_id: int, username: str, role: str) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        # Periksa apakah username sudah dipakai oleh pengguna LAIN
+        cursor.execute("SELECT id FROM users WHERE username = ? AND id != ?", (username.lower().strip(), user_id))
+        if cursor.fetchone():
+            conn.close()
+            return False
+        
         cursor.execute(
             "UPDATE users SET username = ?, role = ? WHERE id = ?",
             (username.lower().strip(), role, user_id)
         )
         conn.commit()
+        
+        # Pastikan user tersebut memang ada
+        cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+        exists = cursor.fetchone() is not None
+        conn.close()
+        return exists
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False
+
+def update_user_password(user_id: int, password_raw: str) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    password_hash = hash_password(password_raw)
+    try:
+        cursor.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (password_hash, user_id)
+        )
+        conn.commit()
         success = cursor.rowcount > 0
         conn.close()
         return success
-    except sqlite3.IntegrityError:
+    except Exception:
         conn.close()
         return False
 
@@ -141,11 +200,11 @@ def delete_user(user_id: int) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    user_deleted = cursor.rowcount > 0
     cursor.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
     conn.commit()
-    success = cursor.rowcount > 0
     conn.close()
-    return success
+    return user_deleted
 
 # Session Management Functions
 def create_session(user_id: int) -> str:
@@ -194,5 +253,70 @@ def delete_session(token: str):
     conn.commit()
     conn.close()
 
+# History Helper Functions
+def add_history(user_id: int, original_text: str, processed_text: str, mode: str, provider: str) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO history (user_id, original_text, processed_text, mode, provider) VALUES (?, ?, ?, ?, ?)",
+            (user_id, original_text, processed_text, mode, provider)
+        )
+        conn.commit()
+        success = cursor.rowcount > 0
+        conn.close()
+        return success
+    except Exception as e:
+        print(f"Error adding history: {e}")
+        conn.close()
+        return False
+
+def get_user_history(user_id: int) -> list:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, original_text, processed_text, mode, provider, created_at FROM history WHERE user_id = ? ORDER BY created_at DESC",
+        (user_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def delete_history_item(user_id: int, history_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM history WHERE id = ? AND user_id = ?", (history_id, user_id))
+    conn.commit()
+    success = cursor.rowcount > 0
+    conn.close()
+    return success
+
+def clear_user_history(user_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM history WHERE user_id = ?", (user_id,))
+    conn.commit()
+    success = cursor.rowcount > 0
+    conn.close()
+    return success
+
+def update_username(user_id: int, username: str) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Check if username is already taken by someone else
+        cursor.execute("SELECT id FROM users WHERE username = ? AND id != ?", (username.lower().strip(), user_id))
+        if cursor.fetchone():
+            conn.close()
+            return False
+        cursor.execute("UPDATE users SET username = ? WHERE id = ?", (username.lower().strip(), user_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        conn.close()
+        return False
+
 # Initialize DB on import
 init_db()
+

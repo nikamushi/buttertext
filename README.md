@@ -36,7 +36,7 @@ Asisten teks berbasis AI untuk bahasa Indonesia. Mendukung tiga fitur utama: **p
 ### 1. Clone repository
 
 ```bash
-git clone <url-repo-ini>
+git clone https://github.com/nikamushi/buttertext.git
 cd buttertext
 ```
 

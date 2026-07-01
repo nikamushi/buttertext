@@ -16,7 +16,7 @@ Asisten teks berbasis AI untuk bahasa Indonesia. Mendukung tiga fitur utama: **p
 | **Ringkasan** | Merangkum teks panjang menjadi poin-poin utama yang padat |
 | **Grammar** | Memeriksa dan memperbaiki ejaan, tanda baca, serta tata bahasa sesuai EYD/PUEBI |
 
-- Pilihan model AI: **Gemini 2.5 Flash** atau **DeepSeek Chat**
+- Pilihan model AI: **Gemini 3 Flash** atau **DeepSeek Chat**
 - Fallback otomatis ke mode simulasi jika API key belum dikonfigurasi
 - Antarmuka responsif dengan skeleton loading dan toast notification
 
